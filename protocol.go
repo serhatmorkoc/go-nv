@@ -1,7 +1,7 @@
 package nv
 
 const (
-	BUFFER_MAX_LENGTH = 1024
+	STX byte = 0x7F
 )
 
 const (
