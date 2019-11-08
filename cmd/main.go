@@ -17,13 +17,16 @@ func main() {
 
 	err := nv.Connect()
 	if err != nil {
-		fmt.Println(err)
+		panic(err)
 	}
 
-	nv.Sync()
-	nv.Enable()
+	_, _ = nv.Sync()
+	_, _ = nv.ChannelValueRequest()
+	ud, err := nv.UnitData()
+	if err != nil {
+		panic(err)
+	}
 
-
-
+	fmt.Println(*ud.UnitData)
 
 }

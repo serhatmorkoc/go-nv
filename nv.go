@@ -15,7 +15,7 @@ const (
 )
 
 var (
-	seq byte = 0x80
+	seq byte = 0x00
 )
 
 type Config struct {
@@ -37,6 +37,25 @@ type Response struct {
 	ErrorMessage string
 	Data         []byte
 	DataLen      uint16
+
+	UnitData *UnitData
+	ChannelData *[]ChannelData
+}
+
+type ChannelData struct {
+	Value     int
+	Channel   byte
+	Currency  []byte
+	Level     int
+	Recycling bool
+}
+
+type UnitData struct {
+	UnitType        string
+	FirmwareVersion string
+	CountryCode     string
+	ValueMultiplier int
+	ProtocolVersion int
 }
 
 func NewService(config *Config) *Service {
@@ -101,17 +120,18 @@ func (s *Service) Disconnect() (err error) {
 
 func (s *Service) Sync() (*Response, error) {
 
-	//Supported on devices:
-	//NV9USB, NV10USB, BV20, BV50, BV100, NV200,
-	//SMART Hopper, SMART Payout, NV11
-
-	//Encryption Required:
-	//No
-
+	//Description:
 	//A command to establish communications with a slave device.
 	//A Sync command resets the seq bit of the packet so that the
 	//slave device expects the next seq bit to be 0. The host then
 	//sets its next seq bit to 0 and the seq sequence is synchronised
+
+	//Encryption Required:
+	//No
+
+	//Supported on devices:
+	//NV9USB, NV10USB, BV20, BV50, BV100, NV200,
+	//SMART Hopper, SMART Payout, NV11
 
 	log.Printf("[INFO] Sync:")
 
@@ -124,11 +144,114 @@ func (s *Service) Sync() (*Response, error) {
 	return cmd, nil
 }
 
+func (s *Service) ChannelValueRequest() (*Response, error) {
+
+	//Description:
+	//Returns channel value data for a banknote validator. Formatted
+	//as: byte 0 - the highest channel used the a value byte representing
+	//each of the denomination values. The real value is obtained
+	//by multiplying by the value multiplier. If the validator is greater
+	//than or equal to protocol version 6 then the channel values response
+	//will be given as: Highest Channel, Value Per Channel (0 for expanded values),
+	//3 Byte ASCI country code for each channel, 4- byte Full channel Value
+	//for each channel.
+
+	//Encryption Required:
+	//No
+
+	//Supported on devices:
+	//NV9USB NV10USB BV20 BV50 BV100 NV200 NV11
+
+	log.Printf("[INFO] ChannelValueRequest:")
+
+	r, err := s.command([]byte{CMD_CHANNEL_VALUE_REQUEST})
+	if err != nil {
+		log.Printf("[ERROR]")
+		return nil, err
+	}
+
+	//Highest Channel
+	_ = r.Data[4]
+
+	return r, nil
+}
+
+func (s *Service) UnitData() (*Response, error) {
+
+	//Description:
+	//Returns, Unit type (1 Byte integer), Firmware Version (4 bytes ASCII string),
+	//Country Code (3 Bytes ASCII string), Value Multiplier (3 bytes integer),
+	// Protocol Version (1 Byte, integer)
+
+	//Encryption Required:
+	//No
+
+	//Supported on devices:
+	//NV9USB NV10USB BV20 BV50 BV100 NV200 NV11
+
+	log.Printf("[INFO] UnitData:")
+
+	r, err := s.command([]byte{CMD_UNIT_DATA})
+	if err != nil {
+		log.Printf("[ERROR]")
+		return nil, err
+	}
+
+	var unitType string
+	switch ut := r.Data[4]; ut {
+	case 0x00:
+		unitType = "Validator"
+	case 0x03:
+		unitType = "SMART Hopper"
+	case 0x06:
+		unitType = "SMART Payout"
+	case 0x07:
+		unitType = "NV11"
+	default:
+		unitType = "Unknown Type"
+	}
+
+	var firmwareVersion string
+	for _, item := range r.Data[5:9] {
+		firmwareVersion += string(item)
+	}
+
+	var country string
+	for _, item := range r.Data[9:12] {
+		country += string(item)
+	}
+
+	var valueMultiplier int
+	for _, item := range r.Data[12:15] {
+		valueMultiplier += int(item)
+	}
+
+	protocolVersion := int(r.Data[15])
+
+	r.UnitData = &UnitData{
+		UnitType:        unitType,
+		FirmwareVersion: firmwareVersion,
+		CountryCode:     country,
+		ValueMultiplier: valueMultiplier,
+		ProtocolVersion: protocolVersion,
+	}
+
+	return r, nil
+}
+
 func (s *Service) Enable() (*Response, error) {
+
+	//Supported on devices:
+	//NV9USB NV10USB BV20 BV50 BV100 NV200 SMART Hopper NV11
+
+	//Encryption Required:
+	//No
+
+	//Send this command to enable a disabled device.
 
 	log.Printf("[INFO] Enable:")
 
-	cmd, err := s.command([]byte{0X11})
+	cmd, err := s.command([]byte{CMD_ENABLE})
 	if err != nil {
 		log.Printf("[ERROR]")
 		return nil, err
