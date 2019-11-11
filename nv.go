@@ -1,3 +1,31 @@
+//Encryption is mandatory for all payout devices and optional for
+//pay in devices. Encrypted data and commands are transported
+//between the host and the slave(s) using the transport mechanism
+//described above, the encrypted information is stored in the data
+//field in the format shown below
+
+//+------------------------------------------------------------+
+//|                     Encryption Layer                       |
+//+------------------------------------------------------------+
+//
+//+------+----------------+----------+--------+--------+-------+
+//| STX  |  SEQ/SLAVE ID  |  LENGTH  |  DATA  |  CRCL  |  CRCH |
+//+------+----------------+----------+--------+--------+-------+
+//
+//
+//+------------------------------------------------------------+
+//|DATA                                                        |
+//+---------+--------------------------------------------------+
+//|STEX     |             Encrypted Data                       |
+//+---------+--------------------------------------------------+
+//
+//
+//+------------------------------------------------------------+
+//|Encrypted Data                                              |
+//+---------+----------+---------+------------+---------+------+
+//|eLENGTH  |  eCOUNT  |  eDATA  |  ePACKING  |  eCRCL  | eCRCH|
+//+---------+----------+---------+------------+---------+------+
+
 package nv
 
 import (
@@ -9,14 +37,6 @@ import (
 	"log"
 	"sync"
 	"time"
-)
-
-const (
-	BUFFER_MAX_LENGTH = 1024
-)
-
-var (
-	seq byte = 0x00
 )
 
 type Config struct {
@@ -87,27 +107,22 @@ func (s *Service) Connect() (err error) {
 	op, err := serial.OpenPort(c)
 	if err != nil {
 		log.Printf("[ERROR]")
-		s.portIsOpen = false
 		return err
 	}
 
 	log.Printf("[INFO] Connect:")
 
 	s.port = op
-	s.portIsOpen = true
-
 	return err
 
 }
 
 func (s *Service) Disconnect() (err error) {
 
-	log.Printf("[INFO] Disconnect:")
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.port == nil {
+	if s.port != nil {
 		err := s.port.Close()
 		if err != nil {
 			log.Printf("[ERROR]")
@@ -115,11 +130,8 @@ func (s *Service) Disconnect() (err error) {
 		}
 	}
 
-	s.portIsOpen = false
 	return
 }
-
-
 
 func (s *Service) ResetFixedEncryptionKey() (*Response, error) {
 
@@ -141,7 +153,6 @@ func (s *Service) ResetFixedEncryptionKey() (*Response, error) {
 	//Example
 	//7F 80 01 61 46 03
 	//7F 80 01 F0 23 80
-
 
 	return
 }
@@ -200,7 +211,6 @@ func (s *Service) EnablePayoutDevice() (*Response, error) {
 	//|  Device error                     | 5             |
 	//+-----------------------------------+---------------+
 
-
 	return
 }
 
@@ -216,13 +226,12 @@ func (s *Service) DisablePayoutDevice() (*Response, error) {
 	//All accepted notes will be routed to the stacker
 	//and payout commands will not be accepted.
 
-
 	return
 }
 
 //Coin Mech Option
 
-func (s *Service) ResetCounters () (*Response, error) {
+func (s *Service) ResetCounters() (*Response, error) {
 
 	//Encryption Required:
 	//No
@@ -234,11 +243,10 @@ func (s *Service) ResetCounters () (*Response, error) {
 	//Resets the note activity counters described in Get Counters
 	//command to all zero values
 
-
 	return
 }
 
-func (s *Service) GetCounters  () (*Response, error) {
+func (s *Service) GetCounters() (*Response, error) {
 
 	//Encryption Required:
 	//No
@@ -254,7 +262,6 @@ func (s *Service) GetCounters  () (*Response, error) {
 	// independent and will wrap to zero and begin again if their
 	// maximum value is reached. Each counter is made up of
 	// 4 bytes of data giving a max value of 4294967295.
-
 
 	//Response
 	//The device responds generic OK if supported and then with data
@@ -282,13 +289,10 @@ func (s *Service) GetCounters  () (*Response, error) {
 	//|      17|20        | 4             |Notes rejected                         |
 	//+-------------------+-------------------------------------------------------+
 
-
-
-
 	return
 }
 
-func (s *Service) EventACK  () (*Response, error) {
+func (s *Service) EventACK() (*Response, error) {
 
 	//Encryption Required:
 	//Yes
@@ -300,16 +304,8 @@ func (s *Service) EventACK  () (*Response, error) {
 	//This command will clear a repeating Poll ACK response
 	//and allow further note operations
 
-
-
 	return
 }
-
-
-
-
-
-
 
 func (s *Service) Sync() (*Response, error) {
 

@@ -1,6 +1,11 @@
 package nv
 
+var (
+	seq byte = 0x00
+)
+
 const (
+	BUFFER_MAX_LENGTH = 1024
 	STX byte = 0x7F
 )
 
