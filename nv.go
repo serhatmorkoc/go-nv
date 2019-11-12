@@ -307,24 +307,176 @@ func (s *Service) EventACK() (*Response, error) {
 	return
 }
 
-func (s *Service) Sync() (*Response, error) {
+func (s *Service) ConfigureBezel() (*Response, error) {
 
 	//Description:
-	//A command to establish communications with a slave device.
-	//A Sync command resets the seq bit of the packet so that the
-	//slave device expects the next seq bit to be 0. The host then
-	//sets its next seq bit to 0 and the seq sequence is synchronised
+	//This command allows the host to configure a supported BNV bezel.
+	//If the bezel is not supported the command will return generic
+	//response COMMAND NOT KNOWN 0xF2.
 
 	//Encryption Required:
 	//No
 
 	//Supported on devices:
-	//NV9USB, NV10USB, BV20, BV50, BV100, NV200,
-	//SMART Hopper, SMART Payout, NV11
+	//NV200
 
-	log.Printf("[INFO] Sync:")
+	//+-----------------+------------------------------------------+
+	//| Data byte index | Function                                 |
+	//+------------------------------------------------------------+
+	//| 0               | Red intensity (0-255)                    |
+	//+------------------------------------------------------------+
+	//| 1               | Green intensity (0-255)                  |
+	//+------------------------------------------------------------+
+	//| 2               | Blue intensity (0-255)                   |
+	//+------------------------------------------------------------+
+	//| 4               |Config 0 for volatile,1 - for non->olatile|
+	//+-----------------+------------------------------------------+
 
-	cmd, err := s.command(CMD_SYNC, []byte{})
+	log.Printf("[INFO] ConfigureBezel:")
+
+	data := make([]byte, 4)
+	data[0] = 0x00 //Red intensity (0-255)
+	data[1] = 0x00 //Green intensity (0-255)
+	data[2] = 0x00 //Blue intensity (0-255)
+	data[3] = 0x00 //Config 0 for volatile,1 - for non-volatile.
+
+	cmd, err := s.command(CMD_CONFIGURE_BEZEL, data)
+	if err != nil {
+		log.Printf("[ERROR]")
+		return nil, err
+	}
+
+	return cmd, nil
+}
+
+func (s *Service) CashboxPayoutOperationData() (*Response, error) {
+
+	//Encryption Required:
+	//No
+
+	//Supported on devices:
+	//SMART Hopper SMART Payout NV11
+
+	//Description:
+	//Can be sent at the end of a SMART Empty, float or dispense operation.
+	//Returns the amount emptied to cashbox from the payout in the last
+	//dispense, float or empty command. The quantity of denominations in the
+	//response is sent as a 2 byte little endian array; the note values as
+	//4-byte little endian array and the country code as a 3-byte ASCII array.
+	//Each denomination in the dataset will be reported, even if 0 coins of
+	//that denomination are emptied. As money is emptied from the device, the
+	//value is checked. An additional 4 bytes will be added to the response
+	//giving a count of object that could not be validated whilst performing
+	//the operation. The response is formatted as follows: byteParameter
+	//byte 0 The number denominations (n) in this response (max 20)
+	//byte 1 to byte 1 + (9*n)The individual denomination level (see description below)
+	//byte 1 to byte 1 + (9*n) + 1 to byte 1 to byte 1 + (9*n) + 4 The number
+	//of un-validated objects moved. Individual level requests: byte 0 and
+	//byte 1number of coins of this denomination moved to cashbox in operation
+	//byte 2 to byte 5The denomination value byte 6 to byte 8The ascii
+	//denomination country code
+
+	//Response
+	//In this example we return data from a device EUR
+	//with 30 x 10c, 40 x 20c, 25 x 50c coins emptied with 5 unknown
+	//coins also emptied.
+
+	//7F 80 17 03 1E 00 0A 00 00 00 28 00 14 00 00 00 19 00 32 00 00 00
+	//05 00 00 00 DF 87
+
+	return
+}
+
+func (s *Service) SmartEmpty() (*Response, error) {
+
+	//Encryption Required:
+	//Yes
+
+	//Supported on devices:
+	//SMART Hopper SMART Payout NV11
+
+	//Description:
+	//Empties payout device of contents, maintaining a count of value emptied.
+	//The current total value emptied is given is response to a poll command.
+	//All coin counters will be set to 0 after running this command. Use
+	//Cashbox Payout Operation Data command to retrieve a breakdown of the
+	//denomination routed to the cashbox through this operation.
+
+	return
+}
+
+func (s *Service) GetHopperOptions() (*Response, error) {
+
+	//Encryption Required:
+	//No
+
+	//Supported on devices:
+	//SMART Hopper
+
+	//Description:
+	//This command returns 2 option register bytes described
+	//in Set Hopper Options command.
+
+	return
+}
+
+//Set Hopper Options
+//Get Build Revision
+//Set Baud Rate
+
+func (s *Service) RequestKeyExchange() (*Response, error) {
+
+	//Description:
+	//The eight data bytes are a 64 bit number representing
+	//the Host intermediate key. If the Generator and Modulus
+	//have been set the slave will calculate the reply with
+	//the generic response and eight data bytes representing
+	//the slave intermediate key. The host and slave will
+	//then calculate the key. If Generator and Modulus are
+	//not set then the slave will reply FAIL
+
+	//Encryption Required:
+	//No
+
+	//Supported on devices:
+	//NV9USB NV10USB BV20 BV50 BV100 NV200 SMART Hopper SMART Payout NV11
+
+	log.Printf("[INFO] RequestKeyExchange:")
+
+	data := make([]byte, 8)
+	//Host intermediate: 982451653
+	binary.LittleEndian.PutUint64(data, uint64(982451653))
+
+	cmd, err := s.command(CMD_REQUEST_KEY_EXCHANGE, []byte{})
+	if err != nil {
+		log.Printf("[ERROR]")
+		return nil, err
+	}
+
+	return cmd, nil
+}
+
+func (s *Service) SetModulus() (*Response, error) {
+
+	//Description:
+	//Eight data bytes are a 64 bit number representing the
+	//modulus this must be a 64 bit prime number. The slave
+	//will reply with OK or PARAMETER_OUT_OF_RANGE if the number
+	//is not prime
+
+	//Encryption Required:
+	//No
+
+	//Supported on devices:
+	//NV9USB NV10USB BV20 BV50 BV100 NV200 SMART Hopper SMART Payout NV11
+
+	log.Printf("[INFO] SetModulus:")
+
+	data := make([]byte, 8)
+	//prime number: 982451653
+	binary.LittleEndian.PutUint64(data, uint64(1287821))
+
+	cmd, err := s.command(CMD_SET_MODULUS, []byte{})
 	if err != nil {
 		log.Printf("[ERROR]")
 		return nil, err
@@ -363,27 +515,54 @@ func (s *Service) SetGenerator() (*Response, error) {
 	return cmd, nil
 }
 
-func (s *Service) SetModulus() (*Response, error) {
+// Set Coin Mech Global Inhibit
+// Payout By Denomination
+// Set Value Reporting Type
+// Float By Denomination
+// Stack Note
+// Payout Note
+// Get Note Positions
+// Set Coin Mech Inhibits
+// Empty All
+// Get Minimum Payout
+// Float Amount
+// Get Denomination Route
+// Set Denomination Route
+// Halt Payout
+// Communication Pass Through
+// Get Denomination Level
+// Set Denomination Level
+// Payout Amount
+// Set Refill Mode
+// Get Bar Code Data
+// Set Bar Code Inhibit Status
+// Get Bar Code Inhibit Status
+// Set Bar Code Configuration
+// Get Bar Code Reader Configuration
+// Get All Levels
+// Get Dataset Version
+// Get Firmware Version
+// Hold
+// Last Reject Code
+
+func (s *Service) Sync() (*Response, error) {
 
 	//Description:
-	//Eight data bytes are a 64 bit number representing the
-	//modulus this must be a 64 bit prime number. The slave
-	//will reply with OK or PARAMETER_OUT_OF_RANGE if the number
-	//is not prime
+	//A command to establish communications with a slave device.
+	//A Sync command resets the seq bit of the packet so that the
+	//slave device expects the next seq bit to be 0. The host then
+	//sets its next seq bit to 0 and the seq sequence is synchronised
 
 	//Encryption Required:
 	//No
 
 	//Supported on devices:
-	//NV9USB NV10USB BV20 BV50 BV100 NV200 SMART Hopper SMART Payout NV11
+	//NV9USB, NV10USB, BV20, BV50, BV100, NV200,
+	//SMART Hopper, SMART Payout, NV11
 
-	log.Printf("[INFO] SetModulus:")
+	log.Printf("[INFO] Sync:")
 
-	data := make([]byte, 8)
-	//prime number: 982451653
-	binary.LittleEndian.PutUint64(data, uint64(1287821))
-
-	cmd, err := s.command(CMD_SET_MODULUS, []byte{})
+	cmd, err := s.command(CMD_SYNC, []byte{})
 	if err != nil {
 		log.Printf("[ERROR]")
 		return nil, err
@@ -392,66 +571,8 @@ func (s *Service) SetModulus() (*Response, error) {
 	return cmd, nil
 }
 
-func (s *Service) HostProtocolVersion() (*Response, error) {
-
-	//Description:
-	//Dual byte command, the first byte is the command; the second
-	//byte is the version of the protocol that is implemented on
-	//the host. So for example, to enable events on BNV to protocol
-	//version 6, send 06, 06. The device will respond with OK if the
-	//device supports version 6, or FAIL (0xF8) if it does not.
-
-	//Encryption Required:
-	//No
-
-	//Supported on devices:
-	//NV9USB NV10USB BV20 BV50 BV100 NV200 SMART Hopper SMART Payout NV11
-
-	log.Printf("[INFO] HostProtocolVersion:")
-
-	data := make([]byte, 1)
-	data[0] = 0x06
-
-	cmd, err := s.command(CMD_HOST_PROTOCOL_VERSION, data)
-	if err != nil {
-		log.Printf("[ERROR]")
-		return nil, err
-	}
-
-	return cmd, nil
-}
-
-func (s *Service) RequestKeyExchange() (*Response, error) {
-
-	//Description:
-	//The eight data bytes are a 64 bit number representing
-	//the Host intermediate key. If the Generator and Modulus
-	//have been set the slave will calculate the reply with
-	//the generic response and eight data bytes representing
-	//the slave intermediate key. The host and slave will
-	//then calculate the key. If Generator and Modulus are
-	//not set then the slave will reply FAIL
-
-	//Encryption Required:
-	//No
-
-	//Supported on devices:
-	//NV9USB NV10USB BV20 BV50 BV100 NV200 SMART Hopper SMART Payout NV11
-
-	log.Printf("[INFO] RequestKeyExchange:")
-
-	data := make([]byte, 8)
-	//Host intermediate: 982451653
-	binary.LittleEndian.PutUint64(data, uint64(982451653))
-
-	cmd, err := s.command(CMD_REQUEST_KEY_EXCHANGE, []byte{})
-	if err != nil {
-		log.Printf("[ERROR]")
-		return nil, err
-	}
-
-	return cmd, nil
-}
+// Channel Re-teach Data
+// Channel Security Data
 
 func (s *Service) ChannelValueRequest() (*Response, error) {
 
@@ -544,6 +665,8 @@ func (s *Service) UnitData() (*Response, error) {
 	return r, nil
 }
 
+// Get Serial Number
+
 func (s *Service) Enable() (*Response, error) {
 
 	//Supported on devices:
@@ -565,28 +688,31 @@ func (s *Service) Enable() (*Response, error) {
 	return cmd, nil
 }
 
-func (s *Service) ConfigureBezel() (*Response, error) {
+// Disable
+// Reject Banknote
+// Poll
+
+func (s *Service) HostProtocolVersion() (*Response, error) {
 
 	//Description:
-	//This command allows the host to configure a supported BNV bezel.
-	//If the bezel is not supported the command will return generic
-	//response COMMAND NOT KNOWN 0xF2.
+	//Dual byte command, the first byte is the command; the second
+	//byte is the version of the protocol that is implemented on
+	//the host. So for example, to enable events on BNV to protocol
+	//version 6, send 06, 06. The device will respond with OK if the
+	//device supports version 6, or FAIL (0xF8) if it does not.
 
 	//Encryption Required:
 	//No
 
 	//Supported on devices:
-	//NV200
+	//NV9USB NV10USB BV20 BV50 BV100 NV200 SMART Hopper SMART Payout NV11
 
-	log.Printf("[INFO] ConfigureBezel:")
+	log.Printf("[INFO] HostProtocolVersion:")
 
-	data := make([]byte, 4)
-	data[0] = 0x00 //Red intensity (0-255)
-	data[1] = 0x00 //Green intensity (0-255)
-	data[2] = 0x00 //Blue intensity (0-255)
-	data[3] = 0x00 //Config 0 for volatile,1 - for non-volatile.
+	data := make([]byte, 1)
+	data[0] = 0x06
 
-	cmd, err := s.command(CMD_CONFIGURE_BEZEL, data)
+	cmd, err := s.command(CMD_HOST_PROTOCOL_VERSION, data)
 	if err != nil {
 		log.Printf("[ERROR]")
 		return nil, err
@@ -594,6 +720,12 @@ func (s *Service) ConfigureBezel() (*Response, error) {
 
 	return cmd, nil
 }
+
+// Setup Request
+// Display Off
+// Display On
+// Set Channel Inhibits
+// Reset
 
 func (s *Service) command(cmd byte, data []byte) (*Response, error) {
 
