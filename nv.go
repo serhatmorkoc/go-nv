@@ -32,6 +32,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"github.com/tarm/serial"
 	"io"
 	"log"
@@ -154,7 +155,7 @@ func (s *Service) ResetFixedEncryptionKey() (*Response, error) {
 	//7F 80 01 61 46 03
 	//7F 80 01 F0 23 80
 
-	return
+	return nil, nil
 }
 
 func (s *Service) SetFixedEncryptionKey() (*Response, error) {
@@ -171,7 +172,7 @@ func (s *Service) SetFixedEncryptionKey() (*Response, error) {
 	//representing the fixed part of the key. This command must
 	//be encrypted.
 
-	return
+	return nil, nil
 }
 
 func (s *Service) EnablePayoutDevice() (*Response, error) {
@@ -211,7 +212,7 @@ func (s *Service) EnablePayoutDevice() (*Response, error) {
 	//|  Device error                     | 5             |
 	//+-----------------------------------+---------------+
 
-	return
+	return nil, nil
 }
 
 func (s *Service) DisablePayoutDevice() (*Response, error) {
@@ -226,7 +227,7 @@ func (s *Service) DisablePayoutDevice() (*Response, error) {
 	//All accepted notes will be routed to the stacker
 	//and payout commands will not be accepted.
 
-	return
+	return nil, nil
 }
 
 //Coin Mech Option
@@ -243,7 +244,7 @@ func (s *Service) ResetCounters() (*Response, error) {
 	//Resets the note activity counters described in Get Counters
 	//command to all zero values
 
-	return
+	return nil, nil
 }
 
 func (s *Service) GetCounters() (*Response, error) {
@@ -289,7 +290,7 @@ func (s *Service) GetCounters() (*Response, error) {
 	//|      17|20        | 4             |Notes rejected                         |
 	//+-------------------+-------------------------------------------------------+
 
-	return
+	return nil, nil
 }
 
 func (s *Service) EventACK() (*Response, error) {
@@ -304,7 +305,7 @@ func (s *Service) EventACK() (*Response, error) {
 	//This command will clear a repeating Poll ACK response
 	//and allow further note operations
 
-	return
+	return nil, nil
 }
 
 func (s *Service) ConfigureBezel() (*Response, error) {
@@ -384,7 +385,7 @@ func (s *Service) CashboxPayoutOperationData() (*Response, error) {
 	//7F 80 17 03 1E 00 0A 00 00 00 28 00 14 00 00 00 19 00 32 00 00 00
 	//05 00 00 00 DF 87
 
-	return
+	return nil, nil
 }
 
 func (s *Service) SmartEmpty() (*Response, error) {
@@ -402,7 +403,7 @@ func (s *Service) SmartEmpty() (*Response, error) {
 	//Cashbox Payout Operation Data command to retrieve a breakdown of the
 	//denomination routed to the cashbox through this operation.
 
-	return
+	return nil, nil
 }
 
 func (s *Service) GetHopperOptions() (*Response, error) {
@@ -417,7 +418,7 @@ func (s *Service) GetHopperOptions() (*Response, error) {
 	//This command returns 2 option register bytes described
 	//in Set Hopper Options command.
 
-	return
+	return nil, nil
 }
 
 //Set Hopper Options
@@ -665,19 +666,43 @@ func (s *Service) UnitData() (*Response, error) {
 	return r, nil
 }
 
-// Get Serial Number
+func (s *Service) GetSerialNumber() (*Response, error) {
 
-func (s *Service) Enable() (*Response, error) {
-
-	//Supported on devices:
-	//NV9USB NV10USB BV20 BV50 BV100 NV200 SMART Hopper NV11
+	//Description
+	//This command returns a 4-byte big endian array representing
+	//the unique factory programmed serial number of the device.
 
 	//Encryption Required:
 	//No
 
+	//Supported on devices:
+	//NV9USB NV10USB BV20 BV50 BV100 NV200 SMART Hopper SMART Payout NV11
+
+	//Response
+	//The device responds with 4 bytes of serial number data. In this
+	//case, the serial number is 01873452 = 0x1c962c. The return array
+	//is formatted as big endian (MSB first).
+	//7F 80 05 F0 00 1C 96 2C D4 97
+
+	cmd, err := s.command(CMD_GET_SERIAL_NUMBER, []byte{})
+	if err != nil {
+		log.Printf("[ERROR]")
+		return nil, err
+	}
+
+	return cmd, nil
+}
+
+func (s *Service) Enable() (*Response, error) {
+
+	//Description
 	//Send this command to enable a disabled device.
 
-	log.Printf("[INFO] Enable:")
+	//Encryption Required:
+	//No
+
+	//Supported on devices:
+	//NV9USB NV10USB BV20 BV50 BV100 NV200 SMART Hopper NV11
 
 	cmd, err := s.command(CMD_ENABLE, []byte{})
 	if err != nil {
@@ -688,7 +713,28 @@ func (s *Service) Enable() (*Response, error) {
 	return cmd, nil
 }
 
-// Disable
+func (s *Service) Disable() (*Response, error) {
+
+	//Description
+	//The peripheral will switch to its disabled state, it
+	//will not execute any more commands or perform any actions
+	//until enabled, any poll commands will report disabled.
+
+	//Encryption Required:
+	//No
+
+	//Supported on devices:
+	//NV9USB NV10USB BV20 BV50 BV100 NV200 SMART Hopper NV11
+
+	cmd, err := s.command(CMD_DISABLE, []byte{})
+	if err != nil {
+		log.Printf("[ERROR]")
+		return nil, err
+	}
+
+	return cmd, nil
+}
+
 // Reject Banknote
 // Poll
 
@@ -721,11 +767,177 @@ func (s *Service) HostProtocolVersion() (*Response, error) {
 	return cmd, nil
 }
 
-// Setup Request
-// Display Off
-// Display On
-// Set Channel Inhibits
-// Reset
+func (s *Service) SetupRequest() (*Response, error) {
+
+	//Supported on devices:
+	//NV9USB NV10USB BV20 BV50 BV100 NV200 SMART Hopper NV11
+
+	//Encryption Required:
+	//No
+
+	//Description:
+	//The device responds with an array of data the format of
+	//which depends upon the device, the dataset installed and
+	//the protocol version set.
+
+	r, err := s.command(CMD_SETUP_REQUEST, []byte{})
+	if err != nil {
+		log.Printf("[ERROR]")
+		return nil, err
+	}
+
+	r.Data = r.Data[4:]
+
+	var unitType string
+	switch ut := r.Data[0]; ut {
+	case 0x00:
+		unitType = "Validator"
+	case 0x03:
+		unitType = "SMART Hopper"
+	case 0x06:
+		unitType = "SMART Payout"
+	case 0x07:
+		unitType = "NV11"
+	default:
+		unitType = "Unknown Type"
+	}
+
+	var firmwareVersion string
+	for _, item := range r.Data[1:5] {
+		firmwareVersion += string(item)
+	}
+
+	var countryCode string
+	for _, item := range r.Data[5:8] {
+		countryCode += string(item)
+	}
+
+	valueMultiplier := uint16(r.Data[10]*100 + r.Data[9]*10 + r.Data[8]*1)
+	numberOfChannels := uint8(r.Data[11])
+	channelValue := r.Data[12 : 12+numberOfChannels]
+	cannelSecurity := r.Data[12+numberOfChannels : 12+numberOfChannels*2 ]
+	realValueMultiplier := ByteToInt(r.Data[12+numberOfChannels*2 : 15+numberOfChannels*2 ])
+	protocolVersion := uint16(r.Data[15+numberOfChannels*2])
+
+	fmt.Println(unitType,
+		firmwareVersion,
+		countryCode,
+		valueMultiplier,
+		numberOfChannels,
+		channelValue,
+		cannelSecurity,
+		realValueMultiplier,
+		protocolVersion)
+
+	return nil, nil
+}
+
+func (s *Service) DisplayOff() (*Response, error) {
+
+	//Description:
+	//This command will force the device bezel to not be
+	//illuminated even if the device is enabled.
+
+	//Encryption Required:
+	//No
+
+	//Supported on devices:
+	//NV9USB NV10USB NV200 NV11
+
+	cmd, err := s.command(CMD_DISPLAY_OFF, []byte{})
+	if err != nil {
+		log.Printf("[ERROR]")
+		return nil, err
+	}
+
+	return cmd, nil
+}
+
+func (s *Service) DisplayOn() (*Response, error) {
+
+	//Description:
+	//Use this command to re-enabled a disabled bezel
+	//illumination function (using the Display Off command).
+	//The Bezel will only be illuminated when the device
+	//is enabled even if this command is sent.
+
+	//Encryption Required:
+	//No
+
+	//Supported on devices:
+	//NV9USB NV10USB NV200 NV11
+
+	cmd, err := s.command(CMD_DISPLAY_ON, []byte{})
+	if err != nil {
+		log.Printf("[ERROR]")
+		return nil, err
+	}
+
+	return cmd, nil
+}
+
+func (s *Service) SetChannelInhibits() (*Response, error) {
+
+	//Description:
+	//Variable length command, used to control which
+	//channels are enabled. The command byte is followed
+	//by 2 data bytes, these bytes are combined to create
+	//the INHIBIT_REGISTER, each bit represents the state
+	//of a channel (LSB= channel 1, 1=enabled, 0=disabled).
+	//At power up all channels are inhibited and the validator
+	//is disabled.
+
+	//This function sends the set inhibits command to set the
+	//inhibits on the validator. An additional two bytes are
+	//sent along with the command byte to indicate the status
+	//of the inhibits on the channels. For example 0xFF and 0xFF
+	//in binary is 11111111 11111111. This indicates all 16
+	//channels supported by the validator are uninhibited.
+	//If a user wants to inhibit channels 8-16, they would
+	//send 0x00 and 0xFF.
+
+	//lowchannels: Channel 1 to 8
+	//highchannels: Channel 9 to 16
+
+	//Encryption Required:
+	//No
+
+	//Supported on devices:
+	//NV9USB NV10USB BV20 BV50 BV100 NV200 NV11
+
+	data := make([]byte, 2)
+	data[0] = 0xFF
+	data[1] = 0xFF
+
+	cmd, err := s.command(CMD_SET_CHANNEL_INHIBITS, data)
+	if err != nil {
+		log.Printf("[ERROR]")
+		return nil, err
+	}
+
+	return cmd, nil
+}
+
+func (s *Service) Reset() (*Response, error) {
+
+	//Description:
+	//Command to instruct the slave to perform a hard reset at
+	//any point within its operational status.
+
+	//Encryption Required:
+	//No
+
+	//Supported on devices:
+	//NV9USB NV10USB BV20 BV50 BV100 NV200 SMART Hopper SMART Payout NV11
+
+	cmd, err := s.command(CMD_RESET, []byte{})
+	if err != nil {
+		log.Printf("[ERROR]")
+		return nil, err
+	}
+
+	return cmd, nil
+}
 
 func (s *Service) command(cmd byte, data []byte) (*Response, error) {
 
@@ -766,6 +978,9 @@ func (s *Service) request(cmd byte, data []byte) (*Response, error) {
 	}
 
 	_, err := s.pWrite(b.Bytes())
+
+	//time.Sleep(50 * time.Millisecond)
+
 	buf, _, err := s.pRead()
 
 	if err != nil {
@@ -782,16 +997,11 @@ func (s *Service) request(cmd byte, data []byte) (*Response, error) {
 
 func (s *Service) pRead() ([]byte, int, error) {
 
-	if !s.portIsOpen {
-		return nil, 0, errors.New("[ERROR]")
-	}
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	buf := make([]byte, BUFFER_MAX_LENGTH)
 
-	time.Sleep(50 * time.Millisecond)
 	i := 0
 	for {
 		readLen, err := s.port.Read(buf[i:])
@@ -816,10 +1026,6 @@ func (s *Service) pRead() ([]byte, int, error) {
 }
 
 func (s *Service) pWrite(data []byte) (int, error) {
-
-	if !s.portIsOpen {
-		return 0, errors.New("[ERROR]")
-	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -857,4 +1063,13 @@ func crc16(data []byte) []byte {
 	}
 
 	return b[:]
+}
+
+func ByteToInt(data []byte) int {
+	var v int = 0
+	for _, d := range data {
+		v = v*100 + int(d)
+	}
+
+	return v
 }
