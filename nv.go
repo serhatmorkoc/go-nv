@@ -52,6 +52,7 @@ type Service struct {
 	config     *Config
 	port       *serial.Port
 	portIsOpen bool
+	isPolling  bool
 }
 
 type Response struct {
@@ -84,6 +85,7 @@ func NewService(config *Config) *Service {
 	return &Service{
 		config:     config,
 		portIsOpen: false,
+		isPolling:  false,
 	}
 }
 
@@ -690,6 +692,7 @@ func (s *Service) GetSerialNumber() (*Response, error) {
 		return nil, err
 	}
 
+	//todo
 	return cmd, nil
 }
 
@@ -736,7 +739,26 @@ func (s *Service) Disable() (*Response, error) {
 }
 
 // Reject Banknote
-// Poll
+
+func (s *Service) Poll() (bool) {
+
+	go func() {
+
+		for s.isPolling {
+
+			time.Sleep(250 * time.Millisecond)
+
+			_, err := s.command(CMD_POLL, []byte{})
+			if err != nil {
+				//return false
+			}
+
+			//todo
+		}
+	}()
+
+	return false
+}
 
 func (s *Service) HostProtocolVersion() (*Response, error) {
 
@@ -816,7 +838,7 @@ func (s *Service) SetupRequest() (*Response, error) {
 	numberOfChannels := uint8(r.Data[11])
 	channelValue := r.Data[12 : 12+numberOfChannels]
 	cannelSecurity := r.Data[12+numberOfChannels : 12+numberOfChannels*2 ]
-	realValueMultiplier := ByteToInt(r.Data[12+numberOfChannels*2 : 15+numberOfChannels*2 ])
+	realValueMultiplier := byteToInt(r.Data[12+numberOfChannels*2 : 15+numberOfChannels*2 ])
 	protocolVersion := uint16(r.Data[15+numberOfChannels*2])
 
 	fmt.Println(unitType,
@@ -965,7 +987,6 @@ func (s *Service) request(cmd byte, data []byte) (*Response, error) {
 	len := byte(len(data) + 1)
 
 	var b bytes.Buffer
-	//b := new(bytes.Buffer)
 	b.WriteByte(STX)
 	b.WriteByte(seq)
 	b.WriteByte(len)
@@ -973,16 +994,15 @@ func (s *Service) request(cmd byte, data []byte) (*Response, error) {
 	b.Write(data)
 	b.Write(crc16(b.Bytes()[1:]))
 
-	if b.Len() > BUFFER_MAX_LENGTH {
+	wlen, err := s.write(b.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	if wlen == 0 {
 		return nil, errors.New("")
 	}
 
-	_, err := s.pWrite(b.Bytes())
-
-	//time.Sleep(50 * time.Millisecond)
-
-	buf, _, err := s.pRead()
-
+	buf, err := s.read()
 	if err != nil {
 		return nil, err
 	}
@@ -995,7 +1015,7 @@ func (s *Service) request(cmd byte, data []byte) (*Response, error) {
 
 }
 
-func (s *Service) pRead() ([]byte, int, error) {
+func (s *Service) read() ([]byte, error) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1009,7 +1029,7 @@ func (s *Service) pRead() ([]byte, int, error) {
 			if err == io.EOF {
 				break
 			}
-			return nil, 0, err
+			return nil, err
 		}
 
 		if readLen == 0 {
@@ -1021,16 +1041,23 @@ func (s *Service) pRead() ([]byte, int, error) {
 
 	log.Printf("[INFO] Read: Read buffer:[% X] len:%v", buf[:i], i)
 
-	return buf, i, nil
-
+	return buf, nil
 }
 
-func (s *Service) pWrite(data []byte) (int, error) {
+func (s *Service) write(data []byte) (int, error) {
+
+	if len(data) == 0 {
+		return 0, errors.New("")
+	}
+
+	if len(data) > BUFFER_MAX_LENGTH {
+		return 0, errors.New("")
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	writeLine, err := s.port.Write(data)
+	wlen, err := s.port.Write(data)
 	if err != nil {
 		log.Printf("[ERROR] Write: Write error:%s", err)
 		return 0, err
@@ -1038,7 +1065,7 @@ func (s *Service) pWrite(data []byte) (int, error) {
 
 	log.Printf("[INFO] Write: Write data:[% X] len:%v", data, len(data))
 
-	return writeLine, nil
+	return wlen, nil
 }
 
 func crc16(data []byte) []byte {
@@ -1065,11 +1092,21 @@ func crc16(data []byte) []byte {
 	return b[:]
 }
 
-func ByteToInt(data []byte) int {
+func byteToInt(data []byte) int {
 	var v int = 0
 	for _, d := range data {
 		v = v*100 + int(d)
 	}
 
 	return v
+}
+
+func (s *Service) StartPoll() {
+
+	s.isPolling = true
+}
+
+func (s *Service) StopPoll() {
+
+	s.isPolling = false
 }
